@@ -34,6 +34,7 @@ textarea { resize: vertical; min-height: 64px; }
 }
 .upload-zone:hover { border-color: #2c5f8a; background: #eef4fa; }
 .upload-zone.has-file { border-color: #27ae60; background: #f0faf5; border-style: solid; }
+.upload-zone.drag-over { border-color: #2c5f8a; background: #dfeaf7; border-style: solid; }
 /* upload-zone input handled inline */
 .upload-icon { font-size: 28px; margin-bottom: 6px; }
 .upload-text { font-size: 13px; color: #555; }
@@ -123,15 +124,19 @@ textarea { resize: vertical; min-height: 64px; }
     <div class="section-title">① 템플릿 업로드</div>
 
     <div class="how-to" style="margin-bottom:12px;">
-      워드 파일에서 실적을 넣을 위치에 <code>{{실적}}</code> 라고 입력 후 저장하세요. 이 앱이 해당 위치에 실적 표를 자동으로 삽입합니다.
+      워드 파일에서 실적을 넣을 위치에 <code>@실적@</code> 라고 입력 후 저장하세요. 이 앱이 해당 위치에 실적 표를 자동으로 삽입합니다.
     </div>
 
-    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()" style="cursor:pointer;">
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()"
+      ondragover="event.preventDefault(); event.stopPropagation(); document.getElementById('uploadZone').classList.add('drag-over');"
+      ondragleave="event.preventDefault(); event.stopPropagation(); document.getElementById('uploadZone').classList.remove('drag-over');"
+      ondrop="handleFileDrop(event)"
+      style="cursor:pointer;">
       <input type="file" id="fileInput" accept=".docx" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;" onchange="handleFileUpload(event)">
       <div class="upload-icon">📄</div>
       <div class="upload-text">
-        수임제안서 양식(.docx)을 클릭하여 업로드
-        <small>&#123;&#123;실적&#125;&#125; 마커가 있는 워드 파일</small>
+        수임제안서 양식(.docx)을 클릭하거나 파일을 끌어다 놓아 업로드
+        <small>@실적@ 마커가 있는 워드 파일</small>
       </div>
       <div class="upload-filename" id="uploadFilename"></div>
     </div>
@@ -220,7 +225,7 @@ textarea { resize: vertical; min-height: 64px; }
           <div class="step-num">1</div>
           <div class="step-content">
             <h3>워드 템플릿 준비</h3>
-            <p>수임제안서 워드 파일에서 실적을 넣을 위치에 <code>{{실적}}</code> 이라고 정확히 입력하세요. 한 줄 전체를 이 텍스트로 채우면 됩니다.</p>
+            <p>수임제안서 워드 파일에서 실적을 넣을 위치에 <code>@실적@</code> 이라고 정확히 입력하세요. 한 줄 전체를 이 텍스트로 채우면 됩니다.</p>
           </div>
         </div>
         <div class="step">
@@ -234,7 +239,7 @@ textarea { resize: vertical; min-height: 64px; }
           <div class="step-num">3</div>
           <div class="step-content">
             <h3>Word 다운로드</h3>
-            <p>버튼을 클릭하면 <code>{{실적}}</code> 위치에 실적 표가 삽입된 완성 Word 파일이 즉시 다운로드됩니다.</p>
+            <p>버튼을 클릭하면 <code>@실적@</code> 위치에 실적 표가 삽입된 완성 Word 파일이 즉시 다운로드됩니다.</p>
           </div>
         </div>
       </div>
@@ -340,6 +345,17 @@ function caseTypeLabel(c) {
   return isCaseType(c, '자문') ? '자문' : '소송';
 }
 
+// 의뢰인 업종 키워드 동의어 — 입력한 단어 하나에 대해 아래 단어들도 함께 매칭
+const INDUSTRY_SYNONYMS = {
+  '건설사': ['건설사', '건설회사', '건설업체'],
+  '신탁사': ['신탁사', '신탁회사'],
+  '시공사': ['시공사', '시공자']
+};
+
+function industryWordVariants(word) {
+  return INDUSTRY_SYNONYMS[word] || [word];
+}
+
 function selectCases() {
   // 다중 체크박스에서 선택된 분야들
   const checkedCats = [...document.querySelectorAll('#catCheckboxes input:checked')].map(el => el.value);
@@ -373,9 +389,11 @@ function selectCases() {
     let score = 0;
     const text = c.perf.toLowerCase();
 
-    // 의뢰인 업종 키워드: 입력된 단어 중 하나 이상 포함 여부 확인
+    // 의뢰인 업종 키워드: 입력된 단어 중 하나 이상 포함 여부 확인 (동의어 포함)
     let industryMatch = 0;
-    industryWords.forEach(w => { if (text.includes(w)) industryMatch++; });
+    industryWords.forEach(w => {
+      if (industryWordVariants(w).some(v => text.includes(v))) industryMatch++;
+    });
     score += industryMatch * 12;
 
     // 사건 관련 키워드: 입력된 단어 중 하나 이상 포함 여부 확인
@@ -477,9 +495,7 @@ function switchTab(tab) {
   else renderCasesTab();
 }
 
-function handleFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+function applyUploadedFile(file) {
   uploadedFile = file;
   const zone = document.getElementById('uploadZone');
   zone.classList.add('has-file');
@@ -489,6 +505,25 @@ function handleFileUpload(event) {
   renderTemplatePreview();
 }
 
+function handleFileDrop(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  document.getElementById('uploadZone').classList.remove('drag-over');
+  const file = event.dataTransfer.files && event.dataTransfer.files[0];
+  if (!file) return;
+  if (!/\.docx$/i.test(file.name)) {
+    alert('.docx 워드 파일만 업로드할 수 있습니다.');
+    return;
+  }
+  applyUploadedFile(file);
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  applyUploadedFile(file);
+}
+
 function renderTemplatePreview() {
   if (!uploadedFile) return;
   const reader = new FileReader();
@@ -496,8 +531,8 @@ function renderTemplatePreview() {
     try {
       const result = await mammoth.convertToHtml({ arrayBuffer: e.target.result });
       let html = result.value;
-      // Highlight {{실적}} marker
-      html = html.replace(/\{\{실적\}\}/g,
+      // Highlight @실적@ marker
+      html = html.replace(/@실적@/g,
         '<mark style="background:#ffe066;padding:2px 6px;border-radius:3px;font-weight:700;color:#7a4f00;">⬇ 실적 자동삽입 위치</mark>');
       document.getElementById('rightContent').innerHTML =
         `<div class="preview-card"><div class="preview-html">${html}</div></div>`;
@@ -704,7 +739,22 @@ function buildTableXml(cases, style) {
 </w:tbl>`;
 }
 
-// Find and replace {{실적}} paragraph in document.xml
+// 문단 텍스트를 파싱해서 @실적@ 마커가 존재하는지 확인 (Word에서 런이 나뉘어 저장될 수 있어 문단 단위로 합쳐서 비교)
+function docContainsMarker(xmlStr) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlStr, 'text/xml');
+    const body = doc.querySelector('body');
+    if (!body) return false;
+    for (const para of body.querySelectorAll('p')) {
+      const combined = [...para.querySelectorAll('t')].map(r => r.textContent).join('');
+      if (combined.trim() === '@실적@') return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+// Find and replace @실적@ paragraph in document.xml
 // Handles run-splitting by reconstructing paragraph text
 function replacePlaceholderInXml(xmlStr, insertXml, isGrouped) {
   const parser = new DOMParser();
@@ -717,7 +767,7 @@ function replacePlaceholderInXml(xmlStr, insertXml, isGrouped) {
   let targetPara = null;
   for (const para of paragraphs) {
     const combined = [...para.querySelectorAll('t')].map(r => r.textContent).join('');
-    if (combined.trim() === '{{실적}}') { targetPara = para; break; }
+    if (combined.trim() === '@실적@') { targetPara = para; break; }
   }
   if (!targetPara) return null;
 
@@ -776,22 +826,19 @@ async function generateDocx() {
     if (!docXmlFile) throw new Error('word/document.xml을 찾을 수 없습니다.');
     const docXml = docXmlFile.asText();
 
-    // Check placeholder exists
-    const allText = docXml;
-    const hasMarker = allText.includes('{{실적}}') ||
-      (allText.includes('{{') && allText.includes('실적') && allText.includes('}}'));
-    if (!hasMarker) {
-      throw new Error('템플릿에서 {{실적}} 마커를 찾을 수 없습니다.\n\nWord 파일에서 실적을 넣을 위치에 {{실적}} 라고 정확히 입력하고 저장했는지 확인해주세요.');
+    // Check placeholder exists (문단 단위로 파싱해서 확인 — Word에서 런이 나뉘어 저장될 수 있음)
+    if (!docContainsMarker(docXml)) {
+      throw new Error('템플릿에서 @실적@ 마커를 찾을 수 없습니다.\n\nWord 파일에서 실적을 넣을 위치에 @실적@ 라고 정확히 입력하고 저장했는지 확인해주세요.');
     }
 
     // Build insert XML based on style
     const isGrouped = (style === 'grouped');
     const insertXml = isGrouped ? buildGroupedListXml(cases) : buildTableXml(cases, 'detailed');
 
-    // Replace {{실적}} placeholder in document
+    // Replace @실적@ placeholder in document
     const newXml = replacePlaceholderInXml(docXml, insertXml, isGrouped);
     if (!newXml) {
-      throw new Error('{{실적}} 위치를 찾았으나 교체에 실패했습니다. 마커가 단독 줄에 있는지 확인해주세요.');
+      throw new Error('@실적@ 위치를 찾았으나 교체에 실패했습니다. 마커가 단독 줄에 있는지 확인해주세요.');
     }
 
     // Update zip
