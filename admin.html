@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>실적 DB 관리자 · 수임제안서 자동입력기</title>
+<script src="xlsx.full.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background: #f5f5f0; color: #1a1a1a; font-size: 14px; }
@@ -50,13 +51,23 @@ td.actions-col { width: 64px; text-align: center; }
   <div class="notice">
     서버의 <code>db.json</code>을 불러와 수정하고, 완료 후 <b>"db.json 다운로드"</b>를 눌러 받은 파일을
     서버의 <code>db.json</code> 위치에 덮어쓰면 <b>user.html</b>(직원용 검색 페이지)에 새로고침만으로 즉시 반영됩니다.
-    재배포·재회람이 필요 없습니다.
+    재배포·재회람이 필요 없습니다.<br>
+    <b>엑셀 업로드:</b> 첫 행은 머리글(<code>분야</code>, <code>실적내용</code>)로 두고, 그 아래에 데이터를 입력한
+    .xlsx/.xls 파일을 사용하세요. 분야 열의 값이 아래 8개 분야 명칭과 정확히 일치해야 목록에서 올바르게 선택됩니다.
   </div>
   <div class="bar">
-    <button class="btn-secondary" onclick="document.getElementById('loadFile').click()">다른 JSON 불러오기</button>
+    <button class="btn-secondary" onclick="document.getElementById('loadFile').click()">JSON 불러오기</button>
     <input type="file" id="loadFile" accept=".json" onchange="onLoadFile(event)">
+
+    <button class="btn-secondary" onclick="document.getElementById('loadExcel').click()">📊 엑셀 불러오기(표에서 수정)</button>
+    <input type="file" id="loadExcel" accept=".xlsx,.xls" onchange="onLoadExcel(event, false)">
+
+    <button class="btn-secondary" onclick="document.getElementById('loadExcelDirect').click()">📊➡️ 엑셀 → db.json 즉시 변환</button>
+    <input type="file" id="loadExcelDirect" accept=".xlsx,.xls" onchange="onLoadExcel(event, true)">
+
     <button class="btn-secondary" onclick="addRow()">+ 실적 추가</button>
     <button class="btn-primary" onclick="downloadJson()">⬇ db.json 다운로드</button>
+    <button class="btn-secondary" onclick="downloadExcelTemplate()">엑셀 양식 받기</button>
     <span class="status" id="statusMsg"></span>
   </div>
   <table>
@@ -100,13 +111,107 @@ function onLoadFile(e) {
   reader.readAsText(f, 'utf-8');
 }
 
+// ── 엑셀 업로드 처리 ─────────────────────────────────────────
+// 머리글 후보 (대소문자/공백 무시하고 매칭)
+const HEADER_ALIASES = {
+  cat:  ['분야', '분류', '카테고리', 'cat', 'category'],
+  perf: ['실적내용', '실적 내용', '실적', '업무내용', '업무 내용', '내용', 'perf', 'content']
+};
+
+function normalizeHeader(s) {
+  return String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function findColIndex(headerRow, aliases) {
+  const normalized = headerRow.map(normalizeHeader);
+  for (const alias of aliases) {
+    const idx = normalized.indexOf(normalizeHeader(alias));
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function parseExcelToData(workbook) {
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  if (!rows.length) throw new Error('시트에 데이터가 없습니다.');
+
+  const headerRow = rows[0];
+  let catIdx = findColIndex(headerRow, HEADER_ALIASES.cat);
+  let perfIdx = findColIndex(headerRow, HEADER_ALIASES.perf);
+  let startRow = 1;
+
+  // 머리글을 못 찾으면: 1행부터 데이터로 간주하고 A열=분야, B열=실적내용으로 가정
+  if (catIdx === -1 && perfIdx === -1) {
+    catIdx = 0;
+    perfIdx = 1;
+    startRow = 0;
+  } else {
+    if (catIdx === -1) catIdx = 0;
+    if (perfIdx === -1) perfIdx = 1;
+  }
+
+  const result = [];
+  for (let i = startRow; i < rows.length; i++) {
+    const row = rows[i];
+    const perf = String(row[perfIdx] ?? '').trim();
+    const cat = String(row[catIdx] ?? '').trim();
+    if (!perf && !cat) continue; // 빈 행 스킵
+    result.push({ no: String(result.length + 1), cat: cat || CATEGORIES[0], sub: '', perf });
+  }
+  if (!result.length) throw new Error('읽을 수 있는 데이터 행이 없습니다.');
+  return result;
+}
+
+function onLoadExcel(e, immediate) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const parsed = parseExcelToData(wb);
+      DATA = parsed;
+      render();
+      if (immediate) {
+        downloadJson();
+        setStatus(`엑셀 ${parsed.length}건 → db.json 변환·다운로드 완료`);
+      } else {
+        setStatus(`엑셀 불러오기 완료: ${f.name} (${parsed.length}건, 아래 표에서 확인 후 db.json 다운로드)`);
+      }
+    } catch (err) {
+      alert('엑셀 처리 오류: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(f);
+  e.target.value = ''; // 같은 파일 재선택 시에도 change 이벤트가 발생하도록 초기화
+}
+
+function downloadExcelTemplate() {
+  const sample = [
+    ['분야', '실적내용'],
+    [CATEGORIES[0], '예) 건설사를 대리하여 시행사를 상대로 한 손해배상 사건에서 전부 승소'],
+    [CATEGORIES[1], '예) 아파트 입주자대표회의를 상대로 한 사건에서 승소']
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(sample);
+  ws['!cols'] = [{ wch: 20 }, { wch: 70 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '실적DB');
+  XLSX.writeFile(wb, '실적DB_업로드양식.xlsx');
+}
+
 function setStatus(msg) {
   document.getElementById('statusMsg').textContent = msg;
   setTimeout(() => { document.getElementById('statusMsg').textContent = ''; }, 3000);
 }
 
 function catOptions(selected) {
-  return CATEGORIES.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
+  let opts = CATEGORIES.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
+  if (selected && !CATEGORIES.includes(selected)) {
+    opts += `<option value="${escapeHtml(selected)}" selected>⚠ ${escapeHtml(selected)} (목록에 없는 값)</option>`;
+  }
+  return opts;
 }
 
 function escapeHtml(s) {
