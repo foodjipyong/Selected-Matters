@@ -10,7 +10,7 @@ body { font-family: 'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background
 header { background: #1a3a5c; color: #fff; padding: 16px 26px; display: flex; justify-content: space-between; align-items: center; }
 header h1 { font-size: 16px; font-weight: 700; }
 header .count { font-size: 12px; color: #cfe0f0; }
-.wrap { max-width: 1150px; margin: 0 auto; padding: 22px 24px 60px; }
+.wrap { max-width: 1250px; margin: 0 auto; padding: 22px 24px 60px; }
 
 .notice {
   background: #fffbe6; border: 1px solid #ffe066; border-radius: 6px; padding: 12px 16px;
@@ -37,9 +37,14 @@ td select, td textarea, td input {
 }
 td textarea { resize: vertical; min-height: 46px; }
 td.no-col { width: 46px; text-align: center; color: #888; }
-td.cat-col { width: 170px; }
+td.type-col { width: 90px; }
+td.cat-col { width: 230px; }
 td.actions-col { width: 64px; text-align: center; }
 .status { font-size: 13px; color: #1a7a3a; margin-left: auto; }
+.warn-badge { color: #c0392b; }
+.cat-checks { display: flex; flex-direction: column; gap: 2px; }
+.cat-checks label { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: normal; cursor: pointer; }
+.cat-checks input[type=checkbox] { width: auto; margin: 0; }
 </style>
 </head>
 <body>
@@ -49,11 +54,13 @@ td.actions-col { width: 64px; text-align: center; }
 </header>
 <div class="wrap">
   <div class="notice">
-    서버의 <code>db.json</code>을 불러와 수정하고, 완료 후 <b>"db.json 다운로드"</b>를 눌러 받은 파일을
-    서버의 <code>db.json</code> 위치에 덮어쓰면 <b>user.html</b>(직원용 검색 페이지)에 새로고침만으로 즉시 반영됩니다.
+    서버의 <code>db.json</code>을 불러와 수정하고, 완료 후 <b>"db.json 다운로드"</b>를 눌러 받은 파일을 서버의
+    <code>db.json</code> 위치에 덮어쓰면 <b>user.html</b>(직원용 검색 페이지)에 새로고침만으로 즉시 반영됩니다.
     재배포·재회람이 필요 없습니다.<br>
-    <b>엑셀 업로드:</b> 첫 행은 머리글(<code>분야</code>, <code>실적내용</code>)로 두고, 그 아래에 데이터를 입력한
-    .xlsx/.xls 파일을 사용하세요. 분야 열의 값이 아래 8개 분야 명칭과 정확히 일치해야 목록에서 올바르게 선택됩니다.
+    <b>엑셀 업로드:</b> 첫 행은 머리글(<code>구분</code>, <code>분야</code>, <code>실적내용</code>)로 두고, 그 아래에 데이터를 입력한
+    .xlsx/.xls 파일을 사용하세요. 구분 값은 "소송"/"자문", 분야 값은 아래 8개 분야 명칭과 정확히 일치해야 목록에서 올바르게
+    선택됩니다. <b>분야가 2개 이상</b>이면 한 칸에 <code>건설행정, 건설환경</code> 처럼 쉼표(,)나 슬래시(/)로 구분해서 적으면
+    표에서 해당 분야가 모두 체크되어 표시됩니다.
   </div>
   <div class="bar">
     <button class="btn-secondary" onclick="document.getElementById('loadFile').click()">JSON 불러오기</button>
@@ -72,7 +79,13 @@ td.actions-col { width: 64px; text-align: center; }
   </div>
   <table>
     <thead>
-      <tr><th style="width:46px;">No</th><th style="width:170px;">분야</th><th>실적 내용 (perf)</th><th style="width:64px;">삭제</th></tr>
+      <tr>
+        <th style="width:46px;">No</th>
+        <th style="width:90px;">구분</th>
+        <th style="width:230px;">분야</th>
+        <th>실적 내용 (perf)</th>
+        <th style="width:64px;">삭제</th>
+      </tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -81,6 +94,7 @@ td.actions-col { width: 64px; text-align: center; }
 <script>
 const CATEGORIES = ["건설부동산 일반","건설행정","건설환경","공공계약 민간투자",
   "도시정비 도시개발","부동산신탁 PF분쟁","수용보상 감정평가","해외건설"];
+const TYPES = ["소송", "자문"];
 
 let DATA = [];
 
@@ -88,6 +102,7 @@ async function loadInitial() {
   try {
     const res = await fetch('db.json?t=' + Date.now());
     DATA = await res.json();
+    DATA.forEach(r => { r.cat = normalizeCatValue(r.cat); });
   } catch (e) {
     DATA = [];
   }
@@ -102,6 +117,7 @@ function onLoadFile(e) {
   reader.onload = (ev) => {
     try {
       DATA = JSON.parse(ev.target.result);
+      DATA.forEach(r => { r.cat = normalizeCatValue(r.cat); });
       render();
       setStatus('불러오기 완료: ' + f.name);
     } catch (err) {
@@ -112,8 +128,8 @@ function onLoadFile(e) {
 }
 
 // ── 엑셀 업로드 처리 ─────────────────────────────────────────
-// 머리글 후보 (대소문자/공백 무시하고 매칭)
 const HEADER_ALIASES = {
+  type: ['구분', '유형', '업무구분', 'type'],
   cat:  ['분야', '분류', '카테고리', 'cat', 'category'],
   perf: ['실적내용', '실적 내용', '실적', '업무내용', '업무 내용', '내용', 'perf', 'content']
 };
@@ -131,6 +147,38 @@ function findColIndex(headerRow, aliases) {
   return -1;
 }
 
+function normalizeType(v) {
+  const s = String(v || '').trim();
+  if (s === '소송' || s === '자문') return s;
+  if (/^lit/i.test(s)) return '소송';
+  if (/^adv/i.test(s)) return '자문';
+  return ''; // 인식 안 되면 미지정으로 남김 (표에서 직접 선택)
+}
+
+// 가운데점(·, ・, ∙, •, ‧ 등 어떤 종류의 점/기호/공백이든) 차이는 무시하고, 한글·영문·숫자만 남겨서 비교
+function normalizeForMatch(s) {
+  return String(s || '').replace(/[^0-9A-Za-z가-힣]/g, '');
+}
+function toCanonicalCat(s) {
+  const norm = normalizeForMatch(s);
+  const found = CATEGORIES.find(c => normalizeForMatch(c) === norm);
+  return found || s;
+}
+
+// 분야 값을 배열로 정규화. 쉼표/슬래시/세미콜론/줄바꿈 등으로 여러 개가 한 칸에 적혀 있으면 나눠서 배열로 만들고,
+// 가운데점·공백 차이만 있는 값은 표준 분야명으로 바꿔준다.
+function normalizeCatValue(v) {
+  let list;
+  if (Array.isArray(v)) {
+    list = v.map(s => String(s).trim()).filter(Boolean);
+  } else {
+    const s = String(v || '').trim();
+    if (!s) return [];
+    list = s.split(/[,，、;\uFF0F\/\n]+/).map(x => x.trim()).filter(Boolean);
+  }
+  return [...new Set(list.map(toCanonicalCat))];
+}
+
 function parseExcelToData(workbook) {
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
@@ -138,15 +186,14 @@ function parseExcelToData(workbook) {
   if (!rows.length) throw new Error('시트에 데이터가 없습니다.');
 
   const headerRow = rows[0];
-  let catIdx = findColIndex(headerRow, HEADER_ALIASES.cat);
+  let typeIdx = findColIndex(headerRow, HEADER_ALIASES.type);
+  let catIdx  = findColIndex(headerRow, HEADER_ALIASES.cat);
   let perfIdx = findColIndex(headerRow, HEADER_ALIASES.perf);
   let startRow = 1;
 
-  // 머리글을 못 찾으면: 1행부터 데이터로 간주하고 A열=분야, B열=실적내용으로 가정
-  if (catIdx === -1 && perfIdx === -1) {
-    catIdx = 0;
-    perfIdx = 1;
-    startRow = 0;
+  // 머리글을 하나도 못 찾으면: 1행부터 데이터로 간주, A=구분 B=분야 C=실적내용으로 가정
+  if (typeIdx === -1 && catIdx === -1 && perfIdx === -1) {
+    typeIdx = 0; catIdx = 1; perfIdx = 2; startRow = 0;
   } else {
     if (catIdx === -1) catIdx = 0;
     if (perfIdx === -1) perfIdx = 1;
@@ -156,9 +203,10 @@ function parseExcelToData(workbook) {
   for (let i = startRow; i < rows.length; i++) {
     const row = rows[i];
     const perf = String(row[perfIdx] ?? '').trim();
-    const cat = String(row[catIdx] ?? '').trim();
-    if (!perf && !cat) continue; // 빈 행 스킵
-    result.push({ no: String(result.length + 1), cat: cat || CATEGORIES[0], sub: '', perf });
+    const cat = normalizeCatValue(row[catIdx]);
+    const type = typeIdx === -1 ? '' : normalizeType(row[typeIdx]);
+    if (!perf && !cat.length) continue; // 빈 행 스킵
+    result.push({ no: String(result.length + 1), type, cat, sub: '', perf });
   }
   if (!result.length) throw new Error('읽을 수 있는 데이터 행이 없습니다.');
   return result;
@@ -174,11 +222,17 @@ function onLoadExcel(e, immediate) {
       const parsed = parseExcelToData(wb);
       DATA = parsed;
       render();
+      const missingType = parsed.filter(r => !r.type).length;
+      const missingCat = parsed.filter(r => !r.cat.length).length;
+      let extra = [];
+      if (missingType) extra.push(`구분 미지정 ${missingType}건`);
+      if (missingCat) extra.push(`분야 미지정 ${missingCat}건`);
+      const extraTxt = extra.length ? ` — ${extra.join(', ')}, 표에서 확인해 주세요` : '';
       if (immediate) {
         downloadJson();
-        setStatus(`엑셀 ${parsed.length}건 → db.json 변환·다운로드 완료`);
+        setStatus(`엑셀 ${parsed.length}건 → db.json 변환·다운로드 완료` + extraTxt);
       } else {
-        setStatus(`엑셀 불러오기 완료: ${f.name} (${parsed.length}건, 아래 표에서 확인 후 db.json 다운로드)`);
+        setStatus(`엑셀 불러오기 완료: ${f.name} (${parsed.length}건, 아래 표에서 확인 후 db.json 다운로드)` + extraTxt);
       }
     } catch (err) {
       alert('엑셀 처리 오류: ' + err.message);
@@ -190,12 +244,13 @@ function onLoadExcel(e, immediate) {
 
 function downloadExcelTemplate() {
   const sample = [
-    ['분야', '실적내용'],
-    [CATEGORIES[0], '예) 건설사를 대리하여 시행사를 상대로 한 손해배상 사건에서 전부 승소'],
-    [CATEGORIES[1], '예) 아파트 입주자대표회의를 상대로 한 사건에서 승소']
+    ['구분', '분야', '실적내용'],
+    ['소송', CATEGORIES[0], '예) 건설사를 대리하여 시행사를 상대로 한 손해배상 사건에서 전부 승소'],
+    ['자문', CATEGORIES[1], '예) 아파트 재건축 사업 관련 법률자문 수행'],
+    ['소송', `${CATEGORIES[2]}, ${CATEGORIES[3]}`, '예) 분야가 2개 이상이면 이렇게 쉼표(,)로 구분해서 한 칸에 적으면 됩니다']
   ];
   const ws = XLSX.utils.aoa_to_sheet(sample);
-  ws['!cols'] = [{ wch: 20 }, { wch: 70 }];
+  ws['!cols'] = [{ wch: 10 }, { wch: 26 }, { wch: 70 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '실적DB');
   XLSX.writeFile(wb, '실적DB_업로드양식.xlsx');
@@ -203,19 +258,50 @@ function downloadExcelTemplate() {
 
 function setStatus(msg) {
   document.getElementById('statusMsg').textContent = msg;
-  setTimeout(() => { document.getElementById('statusMsg').textContent = ''; }, 3000);
+  setTimeout(() => { document.getElementById('statusMsg').textContent = ''; }, 4000);
 }
 
-function catOptions(selected) {
-  let opts = CATEGORIES.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
-  if (selected && !CATEGORIES.includes(selected)) {
-    opts += `<option value="${escapeHtml(selected)}" selected>⚠ ${escapeHtml(selected)} (목록에 없는 값)</option>`;
+function catCheckboxes(idx, catArr) {
+  const arr = Array.isArray(catArr) ? catArr : normalizeCatValue(catArr);
+  let html = '<div class="cat-checks">';
+  CATEGORIES.forEach(c => {
+    const checked = arr.includes(c) ? 'checked' : '';
+    html += `<label><input type="checkbox" ${checked} onchange="toggleCat(${idx}, '${escapeAttr(c)}', this.checked)">${escapeHtml(c)}</label>`;
+  });
+  arr.filter(c => !CATEGORIES.includes(c)).forEach(c => {
+    html += `<label class="warn-badge"><input type="checkbox" checked onchange="toggleCat(${idx}, '${escapeAttr(c)}', this.checked)">⚠ ${escapeHtml(c)}</label>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function toggleCat(idx, catValue, checked) {
+  let arr = Array.isArray(DATA[idx].cat) ? DATA[idx].cat.slice() : normalizeCatValue(DATA[idx].cat);
+  if (checked) {
+    if (!arr.includes(catValue)) arr.push(catValue);
+  } else {
+    arr = arr.filter(c => c !== catValue);
   }
+  arr.sort((a, b) => {
+    const ia = CATEGORIES.indexOf(a), ib = CATEGORIES.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+  DATA[idx].cat = arr;
+  render();
+}
+
+function typeOptions(selected) {
+  let opts = `<option value="" ${!selected ? 'selected' : ''}>-- 선택 --</option>`;
+  opts += TYPES.map(t => `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`).join('');
   return opts;
 }
 
 function escapeHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 function render() {
@@ -224,7 +310,10 @@ function render() {
   tbody.innerHTML = DATA.map((r, i) => `
     <tr>
       <td class="no-col">${i + 1}</td>
-      <td class="cat-col"><select onchange="updateField(${i}, 'cat', this.value)">${catOptions(r.cat)}</select></td>
+      <td class="type-col">
+        <select onchange="updateField(${i}, 'type', this.value)">${typeOptions(r.type)}</select>
+      </td>
+      <td class="cat-col">${catCheckboxes(i, r.cat)}</td>
       <td><textarea oninput="updateField(${i}, 'perf', this.value)">${escapeHtml(r.perf)}</textarea></td>
       <td class="actions-col"><button class="btn-danger" onclick="removeRow(${i})">삭제</button></td>
     </tr>
@@ -237,7 +326,7 @@ function updateField(idx, field, value) {
 
 function addRow() {
   const nextNo = DATA.length ? Math.max(...DATA.map(r => parseInt(r.no) || 0)) + 1 : 1;
-  DATA.push({ no: String(nextNo), cat: CATEGORIES[0], sub: '', perf: '' });
+  DATA.push({ no: String(nextNo), type: '', cat: [], sub: '', perf: '' });
   render();
   window.scrollTo(0, document.body.scrollHeight);
 }
@@ -249,7 +338,7 @@ function removeRow(idx) {
 }
 
 function downloadJson() {
-  DATA.forEach((r, i) => { r.no = String(i + 1); });
+  DATA.forEach((r, i) => { r.no = String(i + 1); r.cat = normalizeCatValue(r.cat); });
   const blob = new Blob([JSON.stringify(DATA, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

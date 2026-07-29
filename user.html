@@ -149,6 +149,7 @@ textarea { resize: vertical; min-height: 64px; }
         <label><input type="checkbox" value="부동산신탁 PF분쟁" onchange="updateMatch()"> 부동산신탁 PF분쟁</label>
         <label><input type="checkbox" value="수용보상 감정평가" onchange="updateMatch()"> 수용보상 감정평가</label>
         <label><input type="checkbox" value="해외건설" onchange="updateMatch()"> 해외건설</label>
+        <label><input type="checkbox" value="기타" onchange="updateMatch()"> 기타</label>
       </div>
     </div>
 
@@ -281,8 +282,31 @@ function isWin(result) {
   return /승소|무혐의|확정|종료|불기소|경고|감경/.test(result);
 }
 
+// 분야(cat) 필드는 문자열(레거시) 또는 배열(다중 분야)일 수 있으므로 항상 배열로 다룬다.
+function itemCats(c) {
+  if (Array.isArray(c.cat)) return c.cat.filter(Boolean);
+  return c.cat ? [c.cat] : [];
+}
+function catDisplay(c) {
+  return effectiveCats(c).join(', ');
+}
+
+// 관리자 화면에서 지정하는 8개 표준 분야. 여기 없는 값(또는 분야 미지정)은 전부 '기타'로 묶는다.
+const KNOWN_CATEGORIES = ["건설부동산 일반","건설행정","건설환경","공공계약 민간투자",
+  "도시정비 도시개발","부동산신탁 PF분쟁","수용보상 감정평가","해외건설"];
+
+// 필터/그룹핑용 분야 목록: 8개 분야에 없는 값은 '기타'로 치환, 분야가 아예 없으면 '기타' 하나만 반환
+function effectiveCats(c) {
+  const raw = itemCats(c);
+  if (!raw.length) return ['기타'];
+  return [...new Set(raw.map(x => KNOWN_CATEGORIES.includes(x) ? x : '기타'))];
+}
+
 function isCaseType(c, type) {
-  // perf 내용 기준으로 판단 (sub 이름은 혼합 카테고리가 있어 부정확)
+  // admin.html에서 지정한 실제 "구분" 값이 있으면 그것을 최우선으로 사용
+  if (c.type === '소송' || c.type === '자문') return c.type === type;
+
+  // 구분값이 없는(레거시) 데이터는 perf 내용 기준 추정으로 폴백
   const perf = c.perf;
   const litigationPattern = /소송|승소|패소|가처분|판결|항소|상고|대법원|청구|사건|불기소|무혐의|중재|처분|취소|확인|고발|기소|재판|수행|진행|심|결정/;
   const advisoryPattern = /자문|검토|협상|조율|법인설립|계약.*작성|작성.*계약|구조.*자문|자문.*구조/;
@@ -293,6 +317,12 @@ function isCaseType(c, type) {
   if (type === '자문') return isAdvisory || (!isLitigation);
   if (type === '소송') return isLitigation;
   return true;
+}
+
+// 표시용 구분 라벨 (배지 등에 사용) — 명시적 type 우선, 없으면 추정
+function caseTypeLabel(c) {
+  if (c.type === '소송' || c.type === '자문') return c.type;
+  return isCaseType(c, '자문') ? '자문' : '소송';
 }
 
 function selectCases() {
@@ -314,8 +344,8 @@ function selectCases() {
 
   let pool = DB;
 
-  // 분야 필터
-  if (hasCat) pool = pool.filter(c => checkedCats.includes(c.cat));
+  // 분야 필터 (cat이 배열인 경우, 선택된 분야 중 하나라도 포함되면 매칭 / 목록에 없는 분야는 '기타'로 취급)
+  if (hasCat) pool = pool.filter(c => effectiveCats(c).some(cat => checkedCats.includes(cat)));
 
   // 실적 유형 필터 (소송/자문 복수 선택 시 OR)
   if (hasType) pool = pool.filter(c => checkedTypes.some(t => isCaseType(c, t)));
@@ -362,11 +392,19 @@ function updateMatch() {
 }
 
 function groupBySubcat(cases) {
+  // 필터에서 체크된 분야가 있으면 그 분야들만 그룹 키로 사용 (없으면 항목이 속한 모든 분야로 그룹핑 → 분야가 2개면 두 그룹에 모두 표시)
+  // 8개 분야에 없는 값이나 분야 미지정 실적은 '기타'로 묶인다.
+  const checkedCats = [...document.querySelectorAll('#catCheckboxes input:checked')].map(el => el.value);
+  const filterActive = checkedCats.length > 0;
   const groups = {};
   cases.forEach(c => {
-    const key = c.cat;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(c);
+    const cats = effectiveCats(c);
+    let keys = filterActive ? cats.filter(cat => checkedCats.includes(cat)) : cats;
+    if (!keys.length) keys = cats;
+    keys.forEach(key => {
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    });
   });
   return groups;
 }
@@ -382,8 +420,7 @@ function renderCasesTab(cases) {
     Object.entries(groups).forEach(([subcat, items]) => {
       html += '<p style="font-weight:700;margin:16px 0 6px;color:#1a3a5c;font-size:13px;">[' + subcat + ']</p><ul style="margin:0 0 8px 24px;padding:0;">';
       items.forEach(c => {
-        const isAdvisory = isCaseType(c, '자문');
-        const typeBadge = isAdvisory
+        const typeBadge = caseTypeLabel(c) === '자문'
           ? '<span class="tag tag-advisory">자문</span>'
           : '<span class="tag tag-litigation">소송</span>';
         html += '<li style="margin:5px 0;font-size:13px;line-height:1.65;">' + c.perf + typeBadge + '</li>';
@@ -402,7 +439,7 @@ function renderCasesTab(cases) {
       html += '<tr>';
       if (style === 'detailed' || style === 'table') {
         html += '<td style="text-align:center">' + (i+1) + '</td>';
-        html += '<td style="font-size:11px;color:#555;">' + c.cat + '</td>';
+        html += '<td style="font-size:11px;color:#555;">' + catDisplay(c) + '</td>';
         html += '<td><strong>' + clientName + '</strong></td>';
         html += '<td>' + c.perf + '</td>';
         html += '<td><span style="color:' + (isWinResult?'#1a7a3a':'#555') + ';font-weight:' + (isWinResult?'600':'400') + '">' + resultText + '</span></td>';
@@ -624,7 +661,7 @@ function buildTableXml(cases, style) {
       // For perf content: keep full text (result is inferred separately)
       cols = [
         {text: String(i+1), width:360},
-        {text: c.cat, width:1800},
+        {text: catDisplay(c), width:1800},
         {text: clientName, width:1600, bold:true},
         {text: c.perf, width:3666},
         {text: resultText, width:1600}
