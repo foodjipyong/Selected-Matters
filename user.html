@@ -257,9 +257,24 @@ window.addEventListener('load', function() {
 <script>
 let DB = [];
 
+// GitHub raw 파일을 직접 조회하도록 설정하면, GitHub Pages 재배포(최대 1분 내외)를 기다리지 않고
+// 커밋 직후 몇 초 내로 최신 db.json이 반영됩니다. admin.html의 "GitHub 설정"과 같은 값을 넣어주세요.
+// 비워두면(둘 다 빈 문자열) 기존처럼 같은 위치의 db.json을 그대로 불러옵니다.
+const GH_OWNER = '';  // 예: jipyongconstruction
+const GH_REPO = '';   // 예: proposal-tool
+const GH_BRANCH = 'main';
+const GH_PATH = 'db.json';
+
+function dbUrl() {
+  if (GH_OWNER && GH_REPO) {
+    return `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_PATH}?t=` + Date.now();
+  }
+  return GH_PATH + '?t=' + Date.now();
+}
+
 async function loadDB() {
   try {
-    const res = await fetch('db.json?t=' + Date.now());
+    const res = await fetch(dbUrl());
     DB = await res.json();
     document.getElementById('dbCount').textContent = DB.length;
     document.getElementById('dbLoadedAt').textContent =
