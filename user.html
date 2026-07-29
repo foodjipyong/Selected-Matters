@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚖️ 수임제안서 실적 자동입력기</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background: #f5f5f0; color: #1a1a1a; font-size: 14px; }
+.app { display: flex; height: 100vh; }
+
+.left { width: 380px; min-width: 340px; background: #fff; border-right: 1px solid #e0ddd4; display: flex; flex-direction: column; overflow: hidden; }
+.left-header { padding: 18px 22px 12px; border-bottom: 1px solid #e8e5dc; }
+.left-header h1 { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+.left-header p { font-size: 12px; color: #888; margin-top: 3px; }
+.left-body { flex: 1; overflow-y: auto; padding: 16px 22px 24px; }
+
+.section-title { font-size: 11px; font-weight: 700; color: #2c5f8a; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 10px; padding-bottom: 4px; border-bottom: 1px solid #e0ddd4; }
+.section-title:first-child { margin-top: 0; }
+
+.form-group { margin-bottom: 12px; }
+label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; }
+label .req { color: #c0392b; }
+input[type="text"], textarea, select {
+  width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
+  font-size: 13px; font-family: inherit; color: #1a1a1a; background: #fafafa; transition: border 0.15s;
+}
+input:focus, textarea:focus, select:focus { outline: none; border-color: #2c5f8a; background: #fff; }
+textarea { resize: vertical; min-height: 64px; }
+
+.upload-zone {
+  border: 2px dashed #c5dbf0; border-radius: 8px; padding: 18px; text-align: center;
+  cursor: pointer; transition: all 0.15s; background: #f7fbff; position: relative;
+}
+.upload-zone:hover { border-color: #2c5f8a; background: #eef4fa; }
+.upload-zone.has-file { border-color: #27ae60; background: #f0faf5; border-style: solid; }
+/* upload-zone input handled inline */
+.upload-icon { font-size: 28px; margin-bottom: 6px; }
+.upload-text { font-size: 13px; color: #555; }
+.upload-text small { display: block; margin-top: 4px; font-size: 11px; color: #999; }
+.upload-filename { font-size: 12px; font-weight: 600; color: #27ae60; margin-top: 6px; }
+
+.how-to { background: #fffbe6; border: 1px solid #ffe066; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #7a6100; line-height: 1.7; }
+.how-to strong { color: #4a3800; }
+.how-to code { background: #fff3b0; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+
+.filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 5px; }
+.checkbox-group label {
+  display: flex; align-items: center; gap: 4px; cursor: pointer;
+  font-size: 12px; font-weight: 400; color: #444; padding: 4px 8px;
+  border: 1px solid #ddd; border-radius: 4px; background: #fafafa; white-space: nowrap;
+}
+.checkbox-group input[type="checkbox"] { width: 13px; height: 13px; margin: 0; }
+.checkbox-group label:has(input:checked) { border-color: #2c5f8a; background: #eef4fa; color: #2c5f8a; }
+.checkbox-group label:has(input[type="radio"]:checked) { border-color: #2c5f8a; background: #eef4fa; color: #2c5f8a; font-weight:600; }
+
+.matched-badge { display: inline-flex; align-items: center; gap: 4px; background: #eef4fa; color: #2c5f8a; border: 1px solid #c5dbf0; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.case-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.case-chip { display: inline-block; padding: 2px 7px; background: #f0f4f8; color: #2c5f8a; border-radius: 3px; font-size: 11px; border: 1px solid #c5dbf0; }
+
+.generate-btn {
+  width: 100%; padding: 12px; background: #1a3a5c; color: #fff;
+  border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s; font-family: inherit;
+}
+.generate-btn:hover { background: #2c5f8a; }
+.generate-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+.right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.right-header { padding: 14px 24px; border-bottom: 1px solid #e0ddd4; background: #fff; display: flex; align-items: center; justify-content: space-between; }
+.right-header h2 { font-size: 14px; font-weight: 600; color: #333; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.tab-btn { padding: 5px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 12px; cursor: pointer; background: #fafafa; color: #666; font-family: inherit; }
+.tab-btn.active { background: #1a3a5c; color: #fff; border-color: #1a3a5c; }
+.dl-btn { padding: 6px 16px; background: #1a3a5c; border: none; color: #fff; border-radius: 5px; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 600; }
+.dl-btn:hover { background: #2c5f8a; }
+.dl-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+.right-body { flex: 1; overflow-y: auto; padding: 24px; background: #f8f7f3; }
+.preview-card { background: #fff; border-radius: 8px; padding: 32px 36px; max-width: 800px; margin: 0 auto; box-shadow: 0 1px 6px rgba(0,0,0,0.07); min-height: 400px; }
+
+.placeholder-msg { text-align: center; padding: 60px 20px; color: #bbb; }
+.placeholder-msg .icon { font-size: 40px; margin-bottom: 12px; }
+
+.step-guide { background: #fff; border-radius: 8px; padding: 24px; max-width: 600px; margin: 0 auto; }
+.step { display: flex; gap: 14px; margin-bottom: 20px; align-items: flex-start; }
+.step-num { width: 28px; height: 28px; background: #1a3a5c; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.step-content h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.step-content p { font-size: 13px; color: #666; line-height: 1.6; }
+.step-content code { background: #f0f4f8; color: #2c5f8a; padding: 1px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+
+.preview-html { font-size: 13px; line-height: 1.8; color: #222; }
+.preview-html table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12px; }
+.preview-html th { background: #D9D9D9; color: #000; padding: 7px 10px; text-align: left; }
+.preview-html td { background: #fff; }
+.preview-html td { border: 1px solid #ddd; padding: 6px 10px; vertical-align: top; }
+.preview-html tr:nth-child(even) td { background: #fff; }
+
+.status-bar { padding: 8px 16px; background: #1a3a5c; color: #fff; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+.tag-win { background: #d5f5e3; color: #1a7a3a; }
+.tag-ok { background: #d6eaf8; color: #1a5276; }
+.tag-litigation { background: #fde8e8; color: #922b21; }
+.tag-advisory { background: #e8f4fd; color: #1a5276; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- LEFT PANEL -->
+<div class="left">
+  <div class="left-header">
+    <h1>⚖️ 수임제안서 실적 자동입력기</h1>
+    <p>워드 템플릿 + 실적 DB 자동 매핑 · DB <span id="dbCount">-</span>건 <span id="dbLoadedAt" style="color:#aaa;"></span></p>
+  </div>
+  <div class="left-body">
+
+    <div class="section-title">① 템플릿 업로드</div>
+
+    <div class="how-to" style="margin-bottom:12px;">
+      워드 파일에서 실적을 넣을 위치에 <code>{{실적}}</code> 라고 입력 후 저장하세요. 이 앱이 해당 위치에 실적 표를 자동으로 삽입합니다.
+    </div>
+
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()" style="cursor:pointer;">
+      <input type="file" id="fileInput" accept=".docx" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;" onchange="handleFileUpload(event)">
+      <div class="upload-icon">📄</div>
+      <div class="upload-text">
+        수임제안서 양식(.docx)을 클릭하여 업로드
+        <small>&#123;&#123;실적&#125;&#125; 마커가 있는 워드 파일</small>
+      </div>
+      <div class="upload-filename" id="uploadFilename"></div>
+    </div>
+
+    <div class="section-title">② 실적 조건 설정</div>
+
+    <div class="form-group">
+      <label>대분류 (분야) <span style="font-size:11px;color:#888;font-weight:400;">· 복수 선택 가능</span></label>
+      <div class="checkbox-group" id="catCheckboxes">
+        <label><input type="checkbox" value="건설부동산 일반" onchange="updateMatch()"> 건설부동산 일반</label>
+        <label><input type="checkbox" value="건설행정" onchange="updateMatch()"> 건설행정</label>
+        <label><input type="checkbox" value="건설환경" onchange="updateMatch()"> 건설환경</label>
+        <label><input type="checkbox" value="공공계약 민간투자" onchange="updateMatch()"> 공공계약 민간투자</label>
+        <label><input type="checkbox" value="도시정비 도시개발" onchange="updateMatch()"> 도시정비 도시개발</label>
+        <label><input type="checkbox" value="부동산신탁 PF분쟁" onchange="updateMatch()"> 부동산신탁 PF분쟁</label>
+        <label><input type="checkbox" value="수용보상 감정평가" onchange="updateMatch()"> 수용보상 감정평가</label>
+        <label><input type="checkbox" value="해외건설" onchange="updateMatch()"> 해외건설</label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>실적 유형 <span style="font-size:11px;color:#888;font-weight:400;">· 복수 선택 가능 (미선택 시 전체)</span></label>
+      <div class="checkbox-group" id="typeCheckboxes">
+        <label><input type="checkbox" value="소송" id="typelitigation" onchange="updateMatch()">
+          <span style="display:inline-flex;align-items:center;gap:4px;">⚖️ 소송</span>
+        </label>
+        <label><input type="checkbox" value="자문" id="typeadvice" onchange="updateMatch()">
+          <span style="display:inline-flex;align-items:center;gap:4px;">📋 자문</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>의뢰인 업종 키워드</label>
+      <input type="text" id="industry" placeholder="예: 건설사, 시행사, 조합 (쉼표로 구분하여 복수 입력)" oninput="debounceMatch()">
+    </div>
+
+    <div class="form-group">
+      <label>사건 관련 키워드</label>
+      <input type="text" id="keywords" placeholder="예: 공사대금, 하자, 손해배상 (쉼표로 구분하여 복수 입력)" oninput="debounceMatch()">
+    </div>
+
+
+    <div id="matchStatus" style="margin-bottom:10px;"></div>
+
+    <div class="form-group">
+      <label>기재 형태</label>
+      <div class="checkbox-group" id="styleRadios" style="flex-direction:column;gap:6px;">
+        <label style="border-color:#2c5f8a;background:#eef4fa;color:#2c5f8a;">
+          <input type="radio" name="outputStyle" value="grouped" checked onchange="updateMatch()" style="width:13px;height:13px;margin:0;">
+          📋 그룹형 목록 (분야별 제목 + 불릿)
+        </label>
+        <label>
+          <input type="radio" name="outputStyle" value="table" onchange="updateMatch()" style="width:13px;height:13px;margin:0;">
+          📊 표 형태 (번호·분야·의뢰인·수행내용·결과)
+        </label>
+      </div>
+    </div>
+
+    <button class="generate-btn" id="genBtn" onclick="generateDocx()">
+      📥 실적 삽입 후 Word 다운로드
+    </button>
+
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right">
+  <div class="right-header">
+    <h2 id="rightTitle">📋 미리보기</h2>
+    <div class="header-actions">
+      <button class="tab-btn active" id="tabTemplate" onclick="switchTab('template')">템플릿 미리보기</button>
+      <button class="tab-btn" id="tabCases" onclick="switchTab('cases')">선별 실적 확인</button>
+      <button class="dl-btn" id="dlBtn" disabled onclick="generateDocx()">⬇ Word 다운로드</button>
+    </div>
+  </div>
+  <div id="statusBar" style="display:none;" class="status-bar">
+    <div class="spinner"></div>
+    <span id="statusMsg">처리 중...</span>
+  </div>
+  <div class="right-body">
+    <div id="rightContent">
+      <div class="step-guide">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>워드 템플릿 준비</h3>
+            <p>수임제안서 워드 파일에서 실적을 넣을 위치에 <code>{{실적}}</code> 이라고 정확히 입력하세요. 한 줄 전체를 이 텍스트로 채우면 됩니다.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>파일 업로드 + 조건 설정</h3>
+            <p>실적 DB는 자동으로 최신 상태가 반영되어 있습니다. 왼쪽에서 템플릿 파일을 업로드하고, 분야·유형·키워드를 선택하면 관련 실적이 자동으로 선별됩니다.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Word 다운로드</h3>
+            <p>버튼을 클릭하면 <code>{{실적}}</code> 위치에 실적 표가 삽입된 완성 Word 파일이 즉시 다운로드됩니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="pizzip.min.js"></script>
+<script src="mammoth.browser.min.js"></script>
+<script>
+window.addEventListener('load', function() {
+  if (typeof PizZip === 'undefined') {
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div style="background:#c0392b;color:#fff;padding:12px 20px;font-size:13px;position:fixed;top:0;left:0;right:0;z-index:9999;">⚠️ 라이브러리 로드 실패 — 인터넷 연결을 확인하고 페이지를 새로고침(F5) 해주세요.</div>');
+  }
+});
+</script>
+<script>
+let DB = [];
+
+async function loadDB() {
+  try {
+    const res = await fetch('db.json?t=' + Date.now());
+    DB = await res.json();
+    document.getElementById('dbCount').textContent = DB.length;
+    document.getElementById('dbLoadedAt').textContent =
+      '(' + new Date().toLocaleString('ko-KR') + ' 기준)';
+  } catch (err) {
+    document.getElementById('dbCount').textContent = '0';
+    document.getElementById('dbLoadedAt').textContent = '(DB 로드 실패 — db.json 위치 확인 필요)';
+  }
+  updateMatch();
+}
+
+let uploadedFile = null;
+let debounceTimer = null;
+let currentTab = 'template';
+
+function debounceMatch() { clearTimeout(debounceTimer); debounceTimer = setTimeout(updateMatch, 300); }
+
+function isWin(result) {
+  if (!result) return false;
+  return /승소|무혐의|확정|종료|불기소|경고|감경/.test(result);
+}
+
+function isCaseType(c, type) {
+  // perf 내용 기준으로 판단 (sub 이름은 혼합 카테고리가 있어 부정확)
+  const perf = c.perf;
+  const litigationPattern = /소송|승소|패소|가처분|판결|항소|상고|대법원|청구|사건|불기소|무혐의|중재|처분|취소|확인|고발|기소|재판|수행|진행|심|결정/;
+  const advisoryPattern = /자문|검토|협상|조율|법인설립|계약.*작성|작성.*계약|구조.*자문|자문.*구조/;
+
+  const isLitigation = litigationPattern.test(perf);
+  const isAdvisory = advisoryPattern.test(perf) && !isLitigation;
+
+  if (type === '자문') return isAdvisory || (!isLitigation);
+  if (type === '소송') return isLitigation;
+  return true;
+}
+
+function selectCases() {
+  // 다중 체크박스에서 선택된 분야들
+  const checkedCats = [...document.querySelectorAll('#catCheckboxes input:checked')].map(el => el.value);
+  const checkedTypes = [...document.querySelectorAll('#typeCheckboxes input:checked')].map(el => el.value);
+  const industry = document.getElementById('industry').value.toLowerCase();
+  const kw = document.getElementById('keywords').value.toLowerCase();
+
+  // 키워드 배열 파싱 (쉼표/공백 구분)
+  const industryWords = industry.split(/[·\/,]+/).map(w => w.trim()).filter(w => w.length > 0);
+  const kwWords = kw.split(/[·\/,]+/).map(w => w.trim()).filter(w => w.length > 0);
+
+  // 필터링 조건 있는지 판단
+  const hasCat = checkedCats.length > 0;
+  const hasType = checkedTypes.length > 0;
+  const hasIndustry = industryWords.length > 0;
+  const hasKw = kwWords.length > 0;
+
+  let pool = DB;
+
+  // 분야 필터
+  if (hasCat) pool = pool.filter(c => checkedCats.includes(c.cat));
+
+  // 실적 유형 필터 (소송/자문 복수 선택 시 OR)
+  if (hasType) pool = pool.filter(c => checkedTypes.some(t => isCaseType(c, t)));
+
+  // 키워드 필터 없을 때는 전체 반환 (점수 정렬 없이)
+  if (!hasIndustry && !hasKw) return pool;
+
+  // 키워드 점수 계산 및 AND 필터링
+  let scored = pool.map(c => {
+    let score = 0;
+    const text = c.perf.toLowerCase();
+
+    // 의뢰인 업종 키워드: 입력된 단어 중 하나 이상 포함 여부 확인
+    let industryMatch = 0;
+    industryWords.forEach(w => { if (text.includes(w)) industryMatch++; });
+    score += industryMatch * 12;
+
+    // 사건 관련 키워드: 입력된 단어 중 하나 이상 포함 여부 확인
+    let kwMatch = 0;
+    kwWords.forEach(w => { if (text.includes(w)) kwMatch++; });
+    score += kwMatch * 10;
+
+    // AND 조건: 두 필드가 모두 입력된 경우, 양쪽 키워드가 모두 하나 이상 매칭되어야 함
+    const passesAndCondition = (hasIndustry && hasKw)
+      ? (industryMatch > 0 && kwMatch > 0)
+      : true;
+
+    return { ...c, score, _passes: passesAndCondition };
+  }).filter(c => c.score > 0 && c._passes)
+    .sort((a,b) => b.score - a.score);
+
+  return scored;
+}
+
+function updateMatch() {
+  const cases = selectCases();
+  const el = document.getElementById('matchStatus');
+  if (cases.length > 0) {
+    el.innerHTML = `<div class="matched-badge">✓ ${cases.length}건 선별됨</div>`;
+  } else {
+    el.innerHTML = '';
+  }
+  if (currentTab === 'cases') renderCasesTab(cases);
+}
+
+function groupBySubcat(cases) {
+  const groups = {};
+  cases.forEach(c => {
+    const key = c.cat;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(c);
+  });
+  return groups;
+}
+
+function renderCasesTab(cases) {
+  if (!cases) cases = selectCases();
+  const style = getOutputStyle();
+  let html = `<div class="preview-card"><p style="font-size:12px;color:#888;margin-bottom:12px;">선별된 실적 ${cases.length}건 (Word에 삽입될 내용)</p>`;
+  if (cases.length === 0) {
+    html += '<p style="color:#bbb;text-align:center;padding:40px 0;">조건에 맞는 실적이 없습니다.</p>';
+  } else if (style === 'grouped') {
+    const groups = groupBySubcat(cases);
+    Object.entries(groups).forEach(([subcat, items]) => {
+      html += '<p style="font-weight:700;margin:16px 0 6px;color:#1a3a5c;font-size:13px;">[' + subcat + ']</p><ul style="margin:0 0 8px 24px;padding:0;">';
+      items.forEach(c => {
+        const isAdvisory = isCaseType(c, '자문');
+        const typeBadge = isAdvisory
+          ? '<span class="tag tag-advisory">자문</span>'
+          : '<span class="tag tag-litigation">소송</span>';
+        html += '<li style="margin:5px 0;font-size:13px;line-height:1.65;">' + c.perf + typeBadge + '</li>';
+      });
+      html += '</ul>';
+    });
+  } else {
+    html += '<table><tr>';
+    if (style === 'detailed' || style === 'table') html += '<th style="width:30px">No.</th><th style="width:150px">분야</th><th style="width:140px">의뢰인</th><th>주요 수행 내용</th><th style="width:80px">결과</th>';
+    else html += '<th style="width:140px">의뢰인</th><th>주요 수행 내용</th>';
+    html += '</tr>';
+    cases.forEach((c, i) => {
+      const clientName = extractClient(c.perf);
+      const resultText = extractResult(c.perf);
+      const isWinResult = /승소|무혐의|불기소|위헌|인용/.test(resultText);
+      html += '<tr>';
+      if (style === 'detailed' || style === 'table') {
+        html += '<td style="text-align:center">' + (i+1) + '</td>';
+        html += '<td style="font-size:11px;color:#555;">' + c.cat + '</td>';
+        html += '<td><strong>' + clientName + '</strong></td>';
+        html += '<td>' + c.perf + '</td>';
+        html += '<td><span style="color:' + (isWinResult?'#1a7a3a':'#555') + ';font-weight:' + (isWinResult?'600':'400') + '">' + resultText + '</span></td>';
+      } else {
+        html += '<td><strong>' + clientName + '</strong></td><td>' + c.perf + '</td>';
+      }
+      html += '</tr>';
+    });
+    html += '</table>';
+  }
+  html += '</div>';
+  document.getElementById('rightContent').innerHTML = html;
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabTemplate').classList.toggle('active', tab === 'template');
+  document.getElementById('tabCases').classList.toggle('active', tab === 'cases');
+  if (tab === 'template') renderTemplatePreview();
+  else renderCasesTab();
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  uploadedFile = file;
+  const zone = document.getElementById('uploadZone');
+  zone.classList.add('has-file');
+  document.getElementById('uploadFilename').textContent = '✓ ' + file.name;
+  document.getElementById('dlBtn').disabled = false;
+  document.getElementById('rightTitle').textContent = '📋 ' + file.name;
+  renderTemplatePreview();
+}
+
+function renderTemplatePreview() {
+  if (!uploadedFile) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const result = await mammoth.convertToHtml({ arrayBuffer: e.target.result });
+      let html = result.value;
+      // Highlight {{실적}} marker
+      html = html.replace(/\{\{실적\}\}/g,
+        '<mark style="background:#ffe066;padding:2px 6px;border-radius:3px;font-weight:700;color:#7a4f00;">⬇ 실적 자동삽입 위치</mark>');
+      document.getElementById('rightContent').innerHTML =
+        `<div class="preview-card"><div class="preview-html">${html}</div></div>`;
+    } catch(err) {
+      document.getElementById('rightContent').innerHTML =
+        `<div class="preview-card"><p style="color:#c0392b;">미리보기 오류: ${err.message}</p></div>`;
+    }
+  };
+  reader.readAsArrayBuffer(uploadedFile);
+}
+
+// Build XML for a Word table row (header)
+function makeXmlHeaderRow(cols) {
+  const cells = cols.map(({text, width}) => `
+    <w:tc>
+      <w:tcPr>
+        <w:tcW w:w="${width}" w:type="dxa"/>
+        <w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>
+        <w:tcMar><w:top w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>
+      </w:tcPr>
+      <w:p>
+        <w:pPr><w:jc w:val="center"/><w:rPr><w:b/><w:color w:val="000000"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+        <w:r><w:rPr><w:b/><w:color w:val="000000"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>${escXml(text)}</w:t></w:r>
+      </w:p>
+    </w:tc>`).join('');
+  return `<w:tr><w:trPr><w:tblHeader/><w:trHeight w:val="400"/></w:trPr>${cells}</w:tr>`;
+}
+
+function makeXmlDataRow(cols, isEven) {
+  const fill = 'FFFFFF';
+  const cells = cols.map(({text, width, bold}) => `
+    <w:tc>
+      <w:tcPr>
+        <w:tcW w:w="${width}" w:type="dxa"/>
+        <w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>
+        <w:tcMar><w:top w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>
+      </w:tcPr>
+      <w:p>
+        <w:pPr><w:rPr>${bold ? '<w:b/>' : ''}<w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+        <w:r><w:rPr>${bold ? '<w:b/>' : ''}<w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">${escXml(text)}</w:t></w:r>
+      </w:p>
+    </w:tc>`).join('');
+  return `<w:tr><w:trPr><w:trHeight w:val="360" w:hRule="atLeast"/></w:trPr>${cells}</w:tr>`;
+}
+
+function escXml(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getOutputStyle() {
+  const r = document.querySelector('input[name="outputStyle"]:checked');
+  return r ? r.value : 'grouped';
+}
+
+// Extract client name from perf text
+// Generic role keywords — if client name is ONLY one of these, keep as-is
+const GENERIC_ROLES = ['건설사','시공사','발주자','발주처','발주기관','시행사','수급인','도급인','조합','재건축조합','재개발조합','정비사업조합','신탁사','신탁회사','수탁자','공단','공사','행정청','은행','증권사','대주단','건설회사','건축사사무소','감정평가법인','법인','임대인','임차인','매수인','매도인','원고','피고','수분양자','분양자','지방자치단체','대학교','국가'];
+
+function extractClient(perf) {
+  const patterns = [
+    /^(.+?)(?:을|를)\s*대리하여/,
+    /^(.+?)(?:을|를)\s*대리한/,
+    /(?:에서\s+)(.+?)(?:을|를)\s*대리하여/,
+  ];
+  for (const pat of patterns) {
+    const m = perf.match(pat);
+    if (m) {
+      let client = m[1].trim().replace(/^[,·\s]+|[,·\s]+$/g, '');
+      client = client.replace(/^.+?(?:사건에서|소송에서|경우)\s+/, '');
+      if (client.length === 0 || client.length >= 50) continue;
+
+      // Strip anonymous single-letter prefix: "A건설사" → "건설사"
+      const anonPrefix = /^[A-Zㄱ-ㅎ]\s*/;
+      const stripped = client.replace(anonPrefix, '');
+      if (GENERIC_ROLES.includes(stripped)) return stripped;
+
+      // "A건설사" style
+      const prefixMatch = client.match(/^[A-Z]\s*(.+)$/);
+      if (prefixMatch && GENERIC_ROLES.includes(prefixMatch[1])) return prefixMatch[1];
+
+      // Long descriptive prefix ending with generic role: "시공자선정 후 최종 도급계약을 체결하지 못한 건설사"
+      // Only strip if the preceding char is a space/조사 (not part of a proper name)
+      for (const role of GENERIC_ROLES) {
+        if (client.endsWith(role) && client.length > role.length) {
+          const before = client.slice(0, client.length - role.length);
+          // Only strip if before ends with a space or Korean particle — not a proper noun char
+          if (/[\s]$/.test(before)) return role;
+        }
+      }
+
+      return client;
+    }
+  }
+  return '-';
+}
+
+// Extract result from perf text
+function extractResult(perf) {
+  if (/전부\s*승소/.test(perf)) return '전부승소';
+  if (/일부\s*승소/.test(perf)) return '일부승소';
+  if (/승소/.test(perf)) return '승소';
+  if (/무혐의|불기소|불송치/.test(perf)) return '무혐의';
+  if (/파기환송/.test(perf)) return '파기환송';
+  if (/위헌결정/.test(perf)) return '위헌결정';
+  if (/화해|조정/.test(perf)) return '화해·조정';
+  if (/인용/.test(perf)) return '인용';
+  if (/감형/.test(perf)) return '감형';
+  if (/자문|검토|협상|조율/.test(perf)) return '자문';
+  return '-';
+}
+
+function buildGroupedListXml(cases) {
+  const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const groups = groupBySubcat(cases);
+  let xml = '';
+
+  // Section header paragraph style
+  const headerPar = (title) => `<w:p>
+    <w:pPr><w:spacing w:before="160" w:after="60"/><w:rPr><w:b/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:b/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t xml:space="preserve">[${escXml(title)}]</w:t></w:r>
+  </w:p>`;
+
+  // Bullet item paragraph (점 + 탭으로 일정 간격 유지)
+  const bulletPar = (text) => `<w:p>
+    <w:pPr>
+      <w:spacing w:before="40" w:after="40"/>
+      <w:ind w:left="360" w:hanging="360"/>
+      <w:tabs><w:tab w:val="left" w:pos="360"/></w:tabs>
+      <w:rPr><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr>
+    </w:pPr>
+    <w:r><w:rPr><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr><w:t>&#x2022;</w:t></w:r>
+    <w:r><w:rPr><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr><w:tab/></w:r>
+    <w:r><w:rPr><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr><w:t xml:space="preserve">${escXml(text)}</w:t></w:r>
+  </w:p>`;
+
+  Object.entries(groups).forEach(([subcat, items]) => {
+    xml += headerPar(subcat);
+    items.forEach(c => { xml += bulletPar(c.perf); });
+    xml += '<w:p><w:pPr><w:spacing w:before="80" w:after="80"/></w:pPr></w:p>';
+  });
+
+  return xml;
+}
+
+function buildTableXml(cases, style) {
+  const border = `<w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+    <w:left w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+    <w:right w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+    <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
+    <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>`;
+
+  let tableWidth, colDefs, headerCols;
+  if (style === 'detailed') {
+    tableWidth = 9026;
+    colDefs = [360, 1800, 1600, 3666, 1600];
+    headerCols = [
+      {text:'No.', width:360},{text:'분야', width:1800},{text:'의뢰인', width:1600},
+      {text:'주요 수행 내용', width:3666},{text:'결과', width:1600}
+    ];
+  } else {
+    tableWidth = 9026;
+    colDefs = [1800, 7226];
+    headerCols = [{text:'의뢰인', width:1800},{text:'주요 수행 내용', width:7226}];
+  }
+
+  const gridCols = colDefs.map(w => `<w:gridCol w:w="${w}"/>`).join('');
+  const headerRow = makeXmlHeaderRow(headerCols);
+
+  const dataRows = cases.map((c, i) => {
+    let cols;
+    if (style === 'detailed') {
+      // Split perf into content and result for display
+      const clientName = extractClient(c.perf);
+      const resultText = extractResult(c.perf);
+      // For perf content: keep full text (result is inferred separately)
+      cols = [
+        {text: String(i+1), width:360},
+        {text: c.cat, width:1800},
+        {text: clientName, width:1600, bold:true},
+        {text: c.perf, width:3666},
+        {text: resultText, width:1600}
+      ];
+    } else {
+      const clientName = extractClient(c.perf);
+      cols = [
+        {text: clientName, width:1800, bold:true},
+        {text: c.perf, width:7226}
+      ];
+    }
+    return makeXmlDataRow(cols, i % 2 === 0);
+  }).join('');
+
+  return `<w:tbl>
+  <w:tblPr>
+    <w:tblStyle w:val="TableGrid"/>
+    <w:tblW w:w="${tableWidth}" w:type="dxa"/>
+    <w:tblBorders>${border}</w:tblBorders>
+    <w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>
+  </w:tblPr>
+  <w:tblGrid>${gridCols}</w:tblGrid>
+  ${headerRow}
+  ${dataRows}
+</w:tbl>`;
+}
+
+// Find and replace {{실적}} paragraph in document.xml
+// Handles run-splitting by reconstructing paragraph text
+function replacePlaceholderInXml(xmlStr, insertXml, isGrouped) {
+  const parser = new DOMParser();
+  const serializer = new XMLSerializer();
+  const doc = parser.parseFromString(xmlStr, 'text/xml');
+  const body = doc.querySelector('body');
+  if (!body) return null;
+
+  const paragraphs = body.querySelectorAll('p');
+  let targetPara = null;
+  for (const para of paragraphs) {
+    const combined = [...para.querySelectorAll('t')].map(r => r.textContent).join('');
+    if (combined.trim() === '{{실적}}') { targetPara = para; break; }
+  }
+  if (!targetPara) return null;
+
+  const NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+  if (isGrouped) {
+    // Insert multiple paragraphs — need to inject numbering definition too
+    const wrapXml = `<root xmlns:w="${NS}">${insertXml}</root>`;
+    const fragDoc = parser.parseFromString(wrapXml, 'text/xml');
+    const children = [...fragDoc.documentElement.childNodes];
+
+    // Before inserting, inject a minimal abstractNum + num for bullets if not present
+    // We'll use numId=1 which may already exist; if not, add to numbering.xml via zip later
+    children.forEach(child => {
+      const imported = doc.importNode(child, true);
+      targetPara.parentNode.insertBefore(imported, targetPara);
+    });
+  } else {
+    // Table insertion
+    const wrapXml = `<root xmlns:w="${NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${insertXml}</root>`;
+    const fragDoc = parser.parseFromString(wrapXml, 'text/xml');
+    const tblEl = fragDoc.querySelector('tbl');
+    if (!tblEl) return null;
+    const imported = doc.importNode(tblEl, true);
+    targetPara.parentNode.insertBefore(imported, targetPara);
+    // spacing paragraph after table
+    const spacePara = doc.createElementNS(NS, 'p');
+    targetPara.parentNode.insertBefore(spacePara, targetPara);
+  }
+
+  targetPara.parentNode.removeChild(targetPara);
+  return serializer.serializeToString(doc);
+}
+
+
+async function generateDocx() {
+  if (!uploadedFile) { alert('워드 템플릿 파일을 먼저 업로드해주세요.'); return; }
+
+  const cases = selectCases();
+  if (cases.length === 0) { alert('선별된 실적이 없습니다. 조건을 변경해 보세요.'); return; }
+
+  const style = getOutputStyle();
+  const btn = document.getElementById('genBtn');
+  const dlBtn = document.getElementById('dlBtn');
+  const statusBar = document.getElementById('statusBar');
+  btn.disabled = true; dlBtn.disabled = true;
+  statusBar.style.display = 'flex';
+  document.getElementById('statusMsg').textContent = `실적 ${cases.length}건 선별 완료 · Word 파일 생성 중...`;
+
+  try {
+    const arrayBuffer = await uploadedFile.arrayBuffer();
+    const zip = new PizZip(arrayBuffer);
+
+    // Get document.xml
+    const docXmlFile = zip.file('word/document.xml');
+    if (!docXmlFile) throw new Error('word/document.xml을 찾을 수 없습니다.');
+    const docXml = docXmlFile.asText();
+
+    // Check placeholder exists
+    const allText = docXml;
+    const hasMarker = allText.includes('{{실적}}') ||
+      (allText.includes('{{') && allText.includes('실적') && allText.includes('}}'));
+    if (!hasMarker) {
+      throw new Error('템플릿에서 {{실적}} 마커를 찾을 수 없습니다.\n\nWord 파일에서 실적을 넣을 위치에 {{실적}} 라고 정확히 입력하고 저장했는지 확인해주세요.');
+    }
+
+    // Build insert XML based on style
+    const isGrouped = (style === 'grouped');
+    const insertXml = isGrouped ? buildGroupedListXml(cases) : buildTableXml(cases, 'detailed');
+
+    // Replace {{실적}} placeholder in document
+    const newXml = replacePlaceholderInXml(docXml, insertXml, isGrouped);
+    if (!newXml) {
+      throw new Error('{{실적}} 위치를 찾았으나 교체에 실패했습니다. 마커가 단독 줄에 있는지 확인해주세요.');
+    }
+
+    // Update zip
+    zip.file('word/document.xml', newXml);
+
+    // Generate and download
+    const blob = zip.generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const origName = uploadedFile.name.replace(/\.docx$/i, '');
+    a.href = url;
+    a.download = `${origName}_실적삽입완료.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    statusBar.style.display = 'none';
+    document.getElementById('statusMsg').textContent = '';
+
+    // Show success
+    document.getElementById('rightContent').innerHTML = `
+      <div class="preview-card" style="text-align:center;padding:48px;">
+        <div style="font-size:48px;margin-bottom:16px;">✅</div>
+        <h2 style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1a3a5c;">다운로드 완료!</h2>
+        <p style="color:#666;margin-bottom:20px;">실적 ${cases.length}건이 삽입된 Word 파일이 다운로드되었습니다.</p>
+        <div style="background:#f0f4f8;border-radius:8px;padding:14px;font-size:13px;color:#555;text-align:left;max-width:440px;margin:0 auto;">
+          <strong>삽입된 실적:</strong><br>
+          ${cases.map((c,i) => `<span style="color:#2c5f8a">• ${c.perf.substring(0,40)}…</span>`).join('<br>')}
+        </div>
+      </div>`;
+  } catch (err) {
+    statusBar.style.display = 'none';
+    alert('오류 발생: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    dlBtn.disabled = false;
+  }
+}
+
+// Init
+// File upload: onclick on uploadZone → fileInput.click() (inline onchange)
+loadDB();
+</script>
+</body>
+</html>
