@@ -154,6 +154,7 @@ textarea { resize: vertical; min-height: 64px; }
         <label><input type="checkbox" value="부동산신탁 PF분쟁" onchange="updateMatch()"> 부동산신탁 PF분쟁</label>
         <label><input type="checkbox" value="수용보상 감정평가" onchange="updateMatch()"> 수용보상 감정평가</label>
         <label><input type="checkbox" value="해외건설" onchange="updateMatch()"> 해외건설</label>
+        <label><input type="checkbox" value="기후에너지" onchange="updateMatch()"> 기후에너지</label>
         <label><input type="checkbox" value="기타" onchange="updateMatch()"> 기타</label>
       </div>
     </div>
@@ -313,7 +314,7 @@ function catDisplay(c) {
 
 // 관리자 화면에서 지정하는 8개 표준 분야. 여기 없는 값(또는 분야 미지정)은 전부 '기타'로 묶는다.
 const KNOWN_CATEGORIES = ["건설부동산 일반","건설행정","건설환경","공공계약 민간투자",
-  "도시정비 도시개발","부동산신탁 PF분쟁","수용보상 감정평가","해외건설"];
+  "도시정비 도시개발","부동산신탁 PF분쟁","수용보상 감정평가","해외건설","기후에너지"];
 
 // 필터/그룹핑용 분야 목록: 8개 분야에 없는 값은 '기타'로 치환, 분야가 아예 없으면 '기타' 하나만 반환
 function effectiveCats(c) {
