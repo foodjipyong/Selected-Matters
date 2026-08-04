@@ -26,6 +26,10 @@ button {
 .btn-primary { background: #1a3a5c; color: #fff; }
 .btn-primary:hover { background: #2c5f8a; }
 .btn-secondary { background: #fff; border: 1px solid #ddd; color: #333; }
+.btn-ghsave { background: #fff; border: 1px solid #ddd; color: #333; }
+.btn-ghsave:hover { background: #eef4fa; }
+.btn-highlight { background: #f8d7da; border: 1px solid #f1aeb5; color: #842029; font-weight: 700; }
+.btn-highlight:hover { background: #f3c2c7; }
 input[type=file] { display: none; }
 
 table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e0ddd4; }
@@ -130,7 +134,7 @@ td.cat-col { width: 230px; }
     </div>
   </div>
   <div class="bar">
-    <button class="btn-secondary" onclick="document.getElementById('loadExcelDirect').click()">📊➡️ 엑셀 → GitHub 즉시 저장</button>
+    <button class="btn-highlight" onclick="document.getElementById('loadExcelDirect').click()">📊➡️ 엑셀 → GitHub 즉시 저장</button>
     <input type="file" id="loadExcelDirect" accept=".xlsx,.xls" onchange="onLoadExcel(event, true)">
 
     <button class="btn-secondary" onclick="document.getElementById('loadFile').click()">JSON 불러오기</button>
@@ -139,7 +143,7 @@ td.cat-col { width: 230px; }
     <button class="btn-secondary" onclick="document.getElementById('loadExcel').click()">📊 엑셀 불러오기(표에서 확인)</button>
     <input type="file" id="loadExcel" accept=".xlsx,.xls" onchange="onLoadExcel(event, false)">
 
-    <button class="btn-primary" onclick="saveToGithub()">🔗 GitHub에 저장</button>
+    <button class="btn-ghsave" onclick="saveToGithub()">🔗 GitHub에 저장</button>
     <button class="btn-secondary" onclick="toggleGhBox()">⚙ GitHub 설정</button>
     <button class="btn-secondary" onclick="downloadJson()">⬇ db.json 다운로드</button>
     <span class="status" id="statusMsg"></span>
