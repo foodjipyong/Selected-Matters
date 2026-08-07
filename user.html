@@ -312,15 +312,29 @@ function catDisplay(c) {
   return effectiveCats(c).join(', ');
 }
 
-// 관리자 화면에서 지정하는 8개 표준 분야. 여기 없는 값(또는 분야 미지정)은 전부 '기타'로 묶는다.
+// 관리자 화면에서 지정하는 9개 표준 분야. 여기 없는 값(또는 분야 미지정)은 전부 '기타'로 묶는다.
 const KNOWN_CATEGORIES = ["건설부동산 일반","건설행정","건설환경","공공계약 민간투자",
   "도시정비 도시개발","부동산신탁 PF분쟁","수용보상 감정평가","해외건설","기후에너지"];
 
-// 필터/그룹핑용 분야 목록: 8개 분야에 없는 값은 '기타'로 치환, 분야가 아예 없으면 '기타' 하나만 반환
+// 실적 기재 시 분야가 나열되는 고정 순서 (표준 9개 분야 → 기타)
+const CATEGORY_ORDER = [...KNOWN_CATEGORIES, "기타"];
+
+// 필터/그룹핑용 분야 목록: 9개 분야에 없는 값은 '기타'로 치환, 분야가 아예 없으면 '기타' 하나만 반환
 function effectiveCats(c) {
   const raw = itemCats(c);
   if (!raw.length) return ['기타'];
   return [...new Set(raw.map(x => KNOWN_CATEGORIES.includes(x) ? x : '기타'))];
+}
+
+// 실적 하나가 여러 분야에 속할 경우, CATEGORY_ORDER 상 가장 앞선 분야를 기준 순서로 사용
+function primaryCategoryIndex(c) {
+  const cats = effectiveCats(c);
+  let minIdx = CATEGORY_ORDER.length;
+  cats.forEach(cat => {
+    const idx = CATEGORY_ORDER.indexOf(cat);
+    if (idx !== -1 && idx < minIdx) minIdx = idx;
+  });
+  return minIdx;
 }
 
 function isCaseType(c, type) {
@@ -383,8 +397,10 @@ function selectCases() {
   // 실적 유형 필터 (소송/자문 복수 선택 시 OR)
   if (hasType) pool = pool.filter(c => checkedTypes.some(t => isCaseType(c, t)));
 
-  // 키워드 필터 없을 때는 전체 반환 (점수 정렬 없이)
-  if (!hasIndustry && !hasKw) return pool;
+  // 키워드 필터 없을 때는 전체 반환 (분야 지정 순서로 정렬)
+  if (!hasIndustry && !hasKw) {
+    return [...pool].sort((a, b) => primaryCategoryIndex(a) - primaryCategoryIndex(b));
+  }
 
   // 키워드 점수 계산 및 AND 필터링
   let scored = pool.map(c => {
@@ -410,7 +426,7 @@ function selectCases() {
 
     return { ...c, score, _passes: passesAndCondition };
   }).filter(c => c.score > 0 && c._passes)
-    .sort((a,b) => b.score - a.score);
+    .sort((a, b) => primaryCategoryIndex(a) - primaryCategoryIndex(b) || b.score - a.score);
 
   return scored;
 }
@@ -428,7 +444,7 @@ function updateMatch() {
 
 function groupBySubcat(cases) {
   // 필터에서 체크된 분야가 있으면 그 분야들만 그룹 키로 사용 (없으면 항목이 속한 모든 분야로 그룹핑 → 분야가 2개면 두 그룹에 모두 표시)
-  // 8개 분야에 없는 값이나 분야 미지정 실적은 '기타'로 묶인다.
+  // 표준 9개 분야에 없는 값이나 분야 미지정 실적은 '기타'로 묶인다.
   const checkedCats = [...document.querySelectorAll('#catCheckboxes input:checked')].map(el => el.value);
   const filterActive = checkedCats.length > 0;
   const groups = {};
@@ -441,7 +457,11 @@ function groupBySubcat(cases) {
       groups[key].push(c);
     });
   });
-  return groups;
+  // 그룹(분야) 헤더가 항상 정해진 순서로 나오도록 재정렬
+  const ordered = {};
+  CATEGORY_ORDER.forEach(cat => { if (groups[cat]) ordered[cat] = groups[cat]; });
+  Object.keys(groups).forEach(k => { if (!ordered[k]) ordered[k] = groups[k]; });
+  return ordered;
 }
 
 function renderCasesTab(cases) {
